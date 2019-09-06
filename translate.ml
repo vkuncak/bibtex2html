@@ -341,7 +341,73 @@ let bibtex_entry k =
     l_name =
       "bib" }
 
-let separate_file (b,((_,k,f) as e)) =
+(* vkuncak *)
+let add_if_exists ch filename comment =
+  if Sys.file_exists filename then begin
+    Html.open_balise ch "font size=\"+1\"";
+    Html.open_href ch filename;
+    output_string ch comment;
+    Html.close_href ch;
+    Html.close_balise ch "font";
+    output_string ch "&nbsp &nbsp\n";
+  end
+
+let add_small_if_exists ch filename comment =
+  if Sys.file_exists filename then begin
+    Html.open_href ch filename;
+    output_string ch comment;
+    Html.close_href ch;
+  end
+
+let output_entry_html ch entry_type key fields =
+  let paper_file = key ^ ".pdf" in
+  let link_to_paper = Sys.file_exists paper_file in
+  let get_field field_name = 
+    try Some (List.assoc field_name fields) 
+    with Not_found -> None in
+  let must_get_field field_name = 
+    match get_field field_name with Some s -> s | None -> "" in
+  let dot_get_field field_name = 
+    match get_field field_name with Some s -> s ^ ". " | None -> "" in
+  let good_publication = 
+    entry_type="INPROCEEDINGS" || 
+    entry_type="ARTICLE" ||
+    entry_type="MASTERSTHESIS" ||
+    entry_type="PHDTHESIS" in
+  let venue = 
+    (if entry_type="TECHREPORT" then 
+       (must_get_field "INSTITUTION" ^ 
+	  " Technical Report " ^ dot_get_field "NUMBER")
+     else if entry_type="MASTERSTHESIS" then 
+       ("Master's Thesis, " ^ dot_get_field "SCHOOL")     
+     else if entry_type="PHDTHESIS" then 
+       ("PhD Thesis, " ^ dot_get_field "SCHOOL")
+     else if entry_type = "INPROCEEDINGS" then
+	 dot_get_field "BOOKTITLE"
+     else if entry_type = "ARTICLE" then
+       dot_get_field "JOURNAL"
+     else if entry_type = "MISC" then
+       dot_get_field "HOWPUBLISHED"
+     else "")
+  in begin
+      (* title *)
+      if link_to_paper then Html.open_href ch paper_file;
+      if good_publication then Html.open_balise ch "strong";
+      latex2html ch (must_get_field "TITLE");
+      if link_to_paper then Html.close_href ch;
+      if good_publication then Html.close_balise ch "strong";
+      output_string ch ". ";
+      (* short venue description *)
+      latex2html ch venue;
+      (* year *)
+      latex2html ch (dot_get_field "YEAR");
+      output_string ch "\n";
+      (* optional .ps file *)
+      add_small_if_exists ch (key ^ ".ps") "[ps]"
+    end
+(* end vkuncak *)
+
+let separate_file (b,((t,k,f) as e)) =
   in_summary := false;
   let file = k ^ !file_suffix in
   let ch = open_out file in
@@ -352,7 +418,10 @@ let separate_file (b,((_,k,f) as e)) =
   end;
   if !print_header then header ch;
   Html.open_balise ch "h2";
-  latex2html ch b;
+(* vkuncak *)
+  output_entry_html ch t k f;
+  (* latex2html ch b *)
+(* end vkuncak *)
   Html.close_balise ch "h2";
   if !print_header then output_string ch !user_header;
   (* JK Html.paragraph ch; *)
@@ -419,7 +488,7 @@ let close_row ch = match !table with
   | NoTable ->
       Html.close_balise ch "p"
 
-let one_entry_summary ch biblio (_,b,((_,k,f) as e)) =
+let one_entry_summary ch biblio (_,b,((t,k,f) as e)) =
   if !Options.debug then begin
     eprintf "[%s]" k; flush stderr
   end;
@@ -439,7 +508,10 @@ let one_entry_summary ch biblio (_,b,((_,k,f) as e)) =
   (* end of JK changes *)
   output_string ch "\n";
   new_column ch;
-  latex2html ch b;
+(* vkuncak *)
+  output_entry_html ch t k f;
+  (* latex2html ch b; *)
+(* end vkuncak *)
   if !linebreak then Html.open_balise ch "br /";
   output_string ch "\n";
 
