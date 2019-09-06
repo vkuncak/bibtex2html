@@ -359,14 +359,30 @@ let add_small_if_exists ch filename comment =
     Html.close_href ch;
   end
 
-let output_entry_html ch entry_type key fields =
+let rec get_field_nocase field_name fields = match fields with
+  | [] -> None
+  | (k,v) :: rest -> 
+    if String.equal (String.uppercase_ascii k) field_name then Some v
+    else get_field_nocase field_name rest
+
+let output_entry_html ch b entry_type key fields =  
+  eprintf "%s: " key; flush stderr;
   let paper_file = key ^ ".pdf" in
   let link_to_paper = Sys.file_exists paper_file in
-  let get_field field_name = 
-    try Some (List.assoc field_name fields) 
-    with Not_found -> None in
+  if link_to_paper then begin
+    eprintf "PDF found!\n"; flush stderr
+  end else begin
+    eprintf "No pdf\n"; flush stderr
+  end;
+
+  if link_to_paper then Html.open_href ch paper_file;
+  latex2html ch b;
+  if link_to_paper then Html.close_href ch
+
+(*
+  let get_field field_name = get_field_nocase field_name fields in
   let must_get_field field_name = 
-    match get_field field_name with Some s -> s | None -> "" in
+    match get_field field_name with Some s -> s | None -> "{" ^ field_name ^ "}?" in
   let dot_get_field field_name = 
     match get_field field_name with Some s -> s ^ ". " | None -> "" in
   let good_publication = 
@@ -405,6 +421,7 @@ let output_entry_html ch entry_type key fields =
       (* optional .ps file *)
       add_small_if_exists ch (key ^ ".ps") "[ps]"
     end
+*)
 (* end vkuncak *)
 
 let separate_file (b,((t,k,f) as e)) =
@@ -418,10 +435,9 @@ let separate_file (b,((t,k,f) as e)) =
   end;
   if !print_header then header ch;
   Html.open_balise ch "h2";
-(* vkuncak *)
-  output_entry_html ch t k f;
-  (* latex2html ch b *)
-(* end vkuncak *)
+  (* vkuncak *)
+  output_entry_html ch b t k f; 
+  (* end vkuncak *)
   Html.close_balise ch "h2";
   if !print_header then output_string ch !user_header;
   (* JK Html.paragraph ch; *)
@@ -509,8 +525,7 @@ let one_entry_summary ch biblio (_,b,((t,k,f) as e)) =
   output_string ch "\n";
   new_column ch;
 (* vkuncak *)
-  output_entry_html ch t k f;
-  (* latex2html ch b; *)
+  output_entry_html ch b t k f;
 (* end vkuncak *)
   if !linebreak then Html.open_balise ch "br /";
   output_string ch "\n";
