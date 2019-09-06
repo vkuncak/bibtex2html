@@ -359,6 +359,13 @@ let add_small_if_exists ch filename comment =
     Html.close_href ch;
   end
 
+let simple_output_entry_html ch b entry_type key fields =  
+  let paper_file = key ^ ".pdf" in
+  let link_to_paper = Sys.file_exists paper_file in
+  if link_to_paper then Html.open_href ch paper_file;
+  latex2html ch b;
+  if link_to_paper then Html.close_href ch
+
 let rec get_field_nocase field_name fields = match fields with
   | [] -> None
   | (k,v) :: rest -> 
@@ -366,43 +373,33 @@ let rec get_field_nocase field_name fields = match fields with
     else get_field_nocase field_name rest
 
 let output_entry_html ch b entry_type key fields =  
-  eprintf "%s: " key; flush stderr;
   let paper_file = key ^ ".pdf" in
   let link_to_paper = Sys.file_exists paper_file in
-  if link_to_paper then begin
-    eprintf "PDF found!\n"; flush stderr
-  end else begin
-    eprintf "No pdf\n"; flush stderr
-  end;
 
-  if link_to_paper then Html.open_href ch paper_file;
-  latex2html ch b;
-  if link_to_paper then Html.close_href ch
-
-(*
   let get_field field_name = get_field_nocase field_name fields in
   let must_get_field field_name = 
     match get_field field_name with Some s -> s | None -> "{" ^ field_name ^ "}?" in
   let dot_get_field field_name = 
-    match get_field field_name with Some s -> s ^ ". " | None -> "" in
+    match get_field field_name with Some s -> s ^ ". " | None -> "{" ^ field_name ^ "}?" in
+  let entryt = String.uppercase_ascii entry_type in
   let good_publication = 
-    entry_type="INPROCEEDINGS" || 
-    entry_type="ARTICLE" ||
-    entry_type="MASTERSTHESIS" ||
-    entry_type="PHDTHESIS" in
+    entryt="INPROCEEDINGS" || 
+    entryt="ARTICLE" ||
+    entryt="MASTERSTHESIS" ||
+    entryt="PHDTHESIS" in
   let venue = 
-    (if entry_type="TECHREPORT" then 
+    (if entryt="TECHREPORT" then 
        (must_get_field "INSTITUTION" ^ 
 	  " Technical Report " ^ dot_get_field "NUMBER")
-     else if entry_type="MASTERSTHESIS" then 
+     else if entryt="MASTERSTHESIS" then 
        ("Master's Thesis, " ^ dot_get_field "SCHOOL")     
-     else if entry_type="PHDTHESIS" then 
+     else if entryt="PHDTHESIS" then 
        ("PhD Thesis, " ^ dot_get_field "SCHOOL")
-     else if entry_type = "INPROCEEDINGS" then
+     else if entryt = "INPROCEEDINGS" then
 	 dot_get_field "BOOKTITLE"
-     else if entry_type = "ARTICLE" then
+     else if entryt = "ARTICLE" then
        dot_get_field "JOURNAL"
-     else if entry_type = "MISC" then
+     else if entryt = "MISC" then
        dot_get_field "HOWPUBLISHED"
      else "")
   in begin
@@ -411,7 +408,7 @@ let output_entry_html ch b entry_type key fields =
       if good_publication then Html.open_balise ch "strong";
       latex2html ch (must_get_field "TITLE");
       if link_to_paper then Html.close_href ch;
-      if good_publication then Html.close_balise ch "strong";
+      if good_publication then Html.close_balise ch "strong"; 
       output_string ch ". ";
       (* short venue description *)
       latex2html ch venue;
@@ -421,7 +418,7 @@ let output_entry_html ch b entry_type key fields =
       (* optional .ps file *)
       add_small_if_exists ch (key ^ ".ps") "[ps]"
     end
-*)
+
 (* end vkuncak *)
 
 let separate_file (b,((t,k,f) as e)) =
@@ -436,7 +433,7 @@ let separate_file (b,((t,k,f) as e)) =
   if !print_header then header ch;
   Html.open_balise ch "h2";
   (* vkuncak *)
-  output_entry_html ch b t k f; 
+  simple_output_entry_html ch b t k f; 
   (* end vkuncak *)
   Html.close_balise ch "h2";
   if !print_header then output_string ch !user_header;
