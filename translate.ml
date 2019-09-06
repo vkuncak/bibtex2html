@@ -54,6 +54,8 @@ let doi_prefix = ref "https://doi.org/"
 let eprint = ref true
 let eprint_prefix = ref "http://arxiv.org/abs/"
 let revkeys = ref false
+let abst_output = ref ""
+let no_abst_output = ref ""
 
 type table_kind = Table | DL | NoTable
 let table = ref Table
@@ -378,9 +380,9 @@ let output_entry_html ch b entry_type key fields =
 
   let get_field field_name = get_field_nocase field_name fields in
   let must_get_field field_name = 
-    match get_field field_name with Some s -> s | None -> "{" ^ field_name ^ "}?" in
+    match get_field field_name with Some s -> s | None -> "" in
   let dot_get_field field_name = 
-    match get_field field_name with Some s -> s ^ ". " | None -> "{" ^ field_name ^ "}?" in
+    match get_field field_name with Some s -> s ^ ". " | None -> "" in
   let entryt = String.uppercase_ascii entry_type in
   let good_publication = 
     entryt="INPROCEEDINGS" || 
@@ -398,7 +400,7 @@ let output_entry_html ch b entry_type key fields =
      else if entryt = "INPROCEEDINGS" then
 	 dot_get_field "BOOKTITLE"
      else if entryt = "ARTICLE" then
-       dot_get_field "JOURNAL"
+       dot_get_field "JOURNAL" ^ dot_get_field "NUMBER"
      else if entryt = "MISC" then
        dot_get_field "HOWPUBLISHED"
      else "")
@@ -421,7 +423,7 @@ let output_entry_html ch b entry_type key fields =
 
 (* end vkuncak *)
 
-let separate_file (b,((t,k,f) as e)) =
+let separate_file_orig (b,((t,k,f) as e)) =
   in_summary := false;
   let file = k ^ !file_suffix in
   let ch = open_out file in
@@ -456,6 +458,58 @@ let separate_file (b,((t,k,f) as e)) =
   Html.open_href ch (!output_file ^ !link_suffix);
   output_string ch "Back";
   Html.close_href ch;
+  if !print_footer then footer ch;
+  if not !nodoc then Html.close_document ch;
+  close_out ch;
+  in_summary := true
+
+(* changed by vkuncak *)    
+let separate_file biblio (b,((_,k,f) as e)) =
+  in_summary := false;
+  let file = k ^ !file_suffix in
+  let ch = open_out file in
+  if not !nodoc then begin
+    let f = if !title_spec then !title else !output_file in
+    let title = sprintf "%s : %s" f k in
+    Html.open_document ch (fun () -> output_string ch title)
+  end;
+  if !print_header then header ch;
+
+  (* title and pdf link *)
+  Html.open_balise ch "h2";
+  let pub_title = (match (get_field_nocase "TITLE" f) with
+    Some s -> s | None -> "PAPER PDF") in
+  let pdffile = k ^ ".pdf" in
+  let link_to_paper = Sys.file_exists pdffile in
+  if link_to_paper then Html.open_href ch pdffile;
+  latex2html ch pub_title;
+  if link_to_paper then Html.close_href ch;
+  Html.close_balise ch "h2";
+  (* paper ps *)
+  add_if_exists ch (k ^ ".ps") "paper ps";
+
+  (* abstract, etc *)
+  (* JK Html.paragraph ch; *)
+  let labs = match make_abstract e with 
+    | Atext a -> display_abstract ch a; []
+    | Alink l -> [l]
+    | No_abstract -> []
+  in Html.paragraph ch;
+  display_notes ch e;
+  if !print_keywords then display_keywords ch e;
+
+  (* citation *)
+  output_string ch "<h3>Citation</h3>";
+  latex2html ch b;
+
+  (* Bibtex entry *)
+  output_string ch "<h3>BibTex Entry</h3>";  
+  let ks = Bibtex.KeySet.singleton k in
+  let ks = Bibfilter.saturate biblio ks in
+    Biboutput.output_bib ~html:true ch biblio (Some ks);
+
+  (* JK Html.paragraph ch; *)
+
   if !print_footer then footer ch;
   if not !nodoc then Html.close_document ch;
   close_out ch;
@@ -527,12 +581,13 @@ let one_entry_summary ch biblio (_,b,((t,k,f) as e)) =
   if !linebreak then Html.open_balise ch "br /";
   output_string ch "\n";
 
-  if !multiple then
-    separate_file (b,e)
+  if !multiple then begin
+    separate_file biblio (b,e)
+  end
   else if !single then begin
     let ks = Bibtex.KeySet.singleton k in
     let ks = Bibfilter.saturate biblio ks in
-    Biboutput.output_bib ~html:true ch biblio (Some ks);
+    Biboutput.output_bib ~html:true ch biblio (Some ks)
   end else begin
     let links = doi_link e @ eprint_link e @ make_links e in
     let links = if !bib_entries then bibtex_entry k :: links else links in
